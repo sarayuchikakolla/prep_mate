@@ -6,7 +6,7 @@ An AI-powered interview and exam preparation web app. Practice answers out loud,
 
 ## Live Demo
 
-prep-mate-khaki.vercel.app
+https://prep-mate-khaki.vercel.app/
 
 ## ✨ Features
 
