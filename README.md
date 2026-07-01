@@ -4,10 +4,6 @@ An AI-powered interview and exam preparation web app. Practice answers out loud,
 
 ---
 
-## Live Demo
-
-https://prep-mate-khaki.vercel.app/
-
 ## ✨ Features
 
 - **AI voice practice** — Speak your answers aloud using ElevenLabs-powered voice interaction
