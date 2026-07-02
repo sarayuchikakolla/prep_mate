@@ -23,16 +23,38 @@ const ResumeUpload = ({ onAnalysisComplete, analysis }: ResumeUploadProps) => {
       toast({ title: "Unsupported format", description: "Please upload a .txt, .md, or .pdf file.", variant: "destructive" });
       return;
     }
+
+    // PDF size check — Gemini Vision accepts up to ~20MB but base64 encoding
+    // triples the size; keep safe at 4MB source = ~12MB base64
+    if (ext === "pdf" && f.size > 4 * 1024 * 1024) {
+      toast({
+        title: "PDF too large",
+        description: "Please use a PDF under 4 MB, or copy-paste your resume as a .txt file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setFile(f);
     setAnalyzing(true);
 
     try {
       let text: string;
+
       if (ext === "pdf") {
-        // Send PDF as base64 to edge function
-        const buffer = await f.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        text = `[PDF_BASE64]${base64}`;
+        // Safe base64 conversion using FileReader (works for any file size, no btoa crash)
+        text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // result is "data:application/pdf;base64,XXXX..."
+            // strip the prefix to get raw base64
+            const base64 = result.split(",")[1];
+            resolve(`[PDF_BASE64]${base64}`);
+          };
+          reader.onerror = () => reject(new Error("Failed to read PDF file"));
+          reader.readAsDataURL(f);
+        });
       } else {
         text = await extractTextFromFile(f);
       }
@@ -42,12 +64,17 @@ const ResumeUpload = ({ onAnalysisComplete, analysis }: ResumeUploadProps) => {
         setAnalyzing(false);
         return;
       }
+
       const result = await analyzeResume(text);
       onAnalysisComplete(result);
       toast({ title: "Resume analyzed!", description: "Your resume has been analyzed successfully." });
     } catch (e) {
       console.error(e);
-      toast({ title: "Analysis failed", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
+      toast({
+        title: "Analysis failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setAnalyzing(false);
     }
@@ -132,12 +159,13 @@ const ResumeUpload = ({ onAnalysisComplete, analysis }: ResumeUploadProps) => {
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Analyzing your resume with AI...</p>
+          <p className="text-xs text-muted-foreground">This may take 10–20 seconds</p>
         </div>
       ) : (
         <>
           <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
           <p className="text-sm font-medium text-foreground">Drop your resume here</p>
-          <p className="text-xs text-muted-foreground mt-1">Supports .txt, .md, .pdf files</p>
+          <p className="text-xs text-muted-foreground mt-1">Supports .txt, .md, .pdf (under 4 MB)</p>
           {file && (
             <div className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
               <FileText className="h-3.5 w-3.5" /> {file.name}
